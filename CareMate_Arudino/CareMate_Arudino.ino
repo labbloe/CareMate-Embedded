@@ -43,6 +43,7 @@ TFT_eSPI tft = TFT_eSPI();
 Servo pillServo;
 TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 TSPoint p;
+BluetoothSerial SerialBT;
 
 // VARIABLE DECLARATIONS
 uint8_t click_value = 1;
@@ -65,9 +66,11 @@ void setup()
   Serial.begin(115200);
 
   // OUTPUTS
-  pinMode(LS, OUTPUT);
-  pinMode(BUTTON1, OUTPUT);
-  pinMode(BUTTON2, OUTPUT);
+  pinMode(LS, INPUT_PULLUP);
+  pinMode(BUTTON1, INPUT_PULLUP);
+  pinMode(BUTTON2, INPUT_PULLUP);
+  digitalWrite(BUTTON1, HIGH);
+  digitalWrite(BUTTON2, HIGH);
   pinMode(SERVO, OUTPUT);
   
   // BLUETOOTH
@@ -103,7 +106,7 @@ void setup()
   }
   Serial.print("SD Card Type: ");
   if (cardType == CARD_MMC)
-  
+  {
     Serial.println("MMC");
   }
   else if (cardType == CARD_SD)
@@ -153,11 +156,72 @@ void loop()
     Serial.write(SerialBT.read());
   }
   delay(20);
+
+
+  if(read_button(BUTTON1))
+  {
+    
+    Serial.println(dispense_pills());
+  }
+
+
+
+  if(read_button(BUTTON2))
+  {
+    for(uint8_t i = 0; i < 90; i++)
+    {
+      Serial.println(90 - i);
+      pillServo.write(90 - i);
+      delay(2000);
+    }
+    
+  }
+  pillServo.write(86);
 }
 
 
 
 
+
+bool dispense_pills()
+{
+  
+  uint32_t my_time = millis();
+  bool return_value = true;
+
+  pillServo.write(98);
+  while(!digitalRead(LS) && return_value)
+  {
+    if(millis() - my_time > 10000)
+    {
+      return_value = false;
+    }
+  }
+  delay(5);
+  while(digitalRead(LS) && return_value)
+  {
+    if(millis() - my_time > 10000)
+    {
+      return_value = false;
+    }
+  }
+  pillServo.write(90);
+
+  return return_value;
+}
+
+bool read_button(uint8_t pin)
+{  
+  for(uint8_t i = 0; i < 20; i++)
+  {
+    if(!digitalRead(pin))
+    {
+      return false;
+    }
+    delay(1);
+  }
+  return true;
+}
 
 void check_ts()
 {
