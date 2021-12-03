@@ -1,0 +1,9 @@
+Email: care.mate.msg@gmail.com
+pass: ~~~~~~11
+
+SMTP Server: smtp.gmail.com
+SMTP username: Complete Gmail address
+SMTP password: Your Gmail password
+SMTP port (TLS): 587
+SMTP port (SSL): 465
+SMTP TLS/SSL required: yes

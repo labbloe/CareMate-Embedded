@@ -5,10 +5,21 @@
 //and also demonstrate that SerialBT have the same functionalities of a normal Serial
 
 #include "BluetoothSerial.h"
+#include "TFT_eSPI.h"
+#include "JPEGDecoder.h"
+#include "TouchScreen.h"
+#include <Arduino.h>
+#if defined(ESP32)
 #include <ArduinoJson.h>
+#elif defined(ESP8266)
+#include <ESP8266WiFi.h>
+#endif
+#include <ESP_Mail_Client.h>
+#include <WiFi.h>
 #include <SPI.h>
 #include <SD.h>
 #include <FS.h>
+
 
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
 #error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
