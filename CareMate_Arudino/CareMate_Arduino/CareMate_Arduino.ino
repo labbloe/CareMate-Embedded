@@ -1,49 +1,11 @@
-// DISPLAY DEFINE
-#define LITE 2
-#define YP 33
-#define XP 4
-#define YM 0
-#define XM 32
-#define CARD_CS 5
-#define TFT_CS 17
-
-// INPUTS DEFINE
-#define LS 22
-#define BUTTON1 34
-#define BUTTON2 35
-
-// OUTPUTS DEFINE
-#define SERVO 26
-#define SPEAKER 25
-#define MIC 27
-
-// TOUCHSCREEN DEFINES
-#define TS_MINX 115
-#define TS_MINY 50
-#define TS_MAXX 790
-#define TS_MAXY 950
-#define MINPRESSURE 10
-#define MAXPRESSURE 1000
-
-// USER DEFINES
-#define SERIAL_ON 0
-
-// INCLUDES
-#include <SPI.h>
-#include <FS.h>
-#include <SD.h>
-#include <TFT_eSPI.h>
-#include <JPEGDecoder.h>
-#include "TouchScreen.h"
-#include <ESP32Servo.h> 
-#include "BluetoothSerial.h"
-
 // OBJECT DECLARATIONS
 TFT_eSPI tft = TFT_eSPI();
 Servo pillServo;
 TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 TSPoint p;
 BluetoothSerial SerialBT;
+StaticJsonDocument<200> doc;
+File questionFile;
 
 // VARIABLE DECLARATIONS
 uint8_t click_value = 1;
@@ -66,13 +28,12 @@ void setup()
   Serial.begin(115200);
 
   // OUTPUTS
+  digitalWrite(LS, LOW);
   pinMode(LS, INPUT_PULLUP);
   pinMode(BUTTON1, INPUT_PULLUP);
   pinMode(BUTTON2, INPUT_PULLUP);
-  digitalWrite(BUTTON1, HIGH);
-  digitalWrite(BUTTON2, HIGH);
   pinMode(SERVO, OUTPUT);
-  
+
   // BLUETOOTH
   SerialBT.begin("CareMate"); //Bluetooth device name
   Serial.println("The device started, now you can pair it with bluetooth!");
@@ -85,12 +46,12 @@ void setup()
   pillServo.setPeriodHertz(50);// Standard 50hz servo
   pillServo.attach(SERVO, 700, 2300);
   analogSetWidth(10);
-  
+
   // SPI
-  digitalWrite(TFT_CS, HIGH); // Set CS's to high to avoid bus contention
-  digitalWrite(CARD_CS, HIGH);
-  //digitalWrite(15, HIGH); // TFT screen chip select 
-  //digitalWrite(5, HIGH); // SD card chips select, must use GPIO 5 (ESP32 SS)
+  //digitalWrite(TFT_CS, HIGH); // Set CS's to high to avoid bus contention
+  //digitalWrite(CARD_CS, HIGH);
+  digitalWrite(15, HIGH); // TFT screen chip select
+  digitalWrite(5, HIGH); // SD card chips select, must use GPIO 5 (ESP32 SS)
 
   // SD CARD
   if (!SD.begin(SD_CS))
@@ -127,9 +88,12 @@ void setup()
 
   // DISPLAY
   tft.begin();
-  tft.setRotation(1);  // landscape (all files printed in landscape only)
+  tft.setRotation(3);  // landscape (all files printed in landscape only)
   tft.fillScreen(random(0xFFFF));
   tft.setTextColor(TFT_BLACK, TFT_WHITE);
+  drawSdJpeg("/main.jpg", 0, 0);
+  //drawSdJpeg("/pill_alarm.jpg", 0, 0);
+  bluetooth_setup();
 }
 
 
@@ -139,68 +103,126 @@ void setup()
 void loop()
 {
   /* SAVED CODE
-  drawSdJpeg("/pill.jpg", 19, 205);
-  tft.fillScreen(0xFFFF);
-  tft.drawString("12:34PM", 50, 100, 7); // VERT, HORIZ, SIZE
-  tft.setTextColor(TFT_BLACK, TFT_WHITE);
-  check_ts();
-  pillServo.write(120);
+    drawSdJpeg("/pill.jpg", 0, 0);
+    tft.fillScreen(0xFFFF);
+    tft.drawString("12:34PM", 50, 100, 7); // VERT, HORIZ, SIZE
+    tft.setTextColor(TFT_BLACK, TFT_WHITE);
+    check_ts();
+    pillServo.write(120);
+    tft.drawLine(x1, y1, x2, y2, color)
+    tft.drawCircle(x, y, radius, color);
+    tft.drawRect(cx-i2, cy-i2, i, i, color);
+    tft.fillRect(cx-i2, cy-i2, i, i, color1); // horiz, vert, horiz, vert
+    0xE71C background
+    0xCE59 boxes
+    0x2945 top bar
+    tft.setCursor(0, 0);
+    tft.setTextColor(HX8357_WHITE);
+    tft.setTextSize(1);
+    tft.println("Hello World!");
+    top bar goes down 18 pixels
+    size 1: 80
+    size 2:
   */
+
   
-  if (Serial.available())
-  {
-    SerialBT.write(Serial.read());
-  }
-  if (SerialBT.available())
-  {
-    Serial.write(SerialBT.read());
-  }
-  delay(20);
 
+  
 
-  if(read_button(BUTTON1))
+  tft.setTextColor(BOX, TB);
+  tft.setCursor(0, 0);
+  tft.setTextSize(2);
+  tft.print("          Team JJJJ - CareMate");
+
+  tft.setTextSize(4);
+  tft.setCursor(50, 120);
+  tft.setTextColor(0x0000, BOX);
+  tft.print("0123456789012345");
+  
+  tft.setTextColor(0x0000, BG);
+  tft.setCursor(140, 40);
+  tft.setTextSize(8);
+  tft.print("12:34");
+  
+  //delay(1000);
+
+  tft.fillRect(45, 116, 390, 41, BOX);
+  tft.fillRect(0, 0, 480, 18, TB);
+  tft.fillRect(0, 20, 480, 90, BG);
+  
+  //delay(1000);
+
+  
+
+  
+  /*
+  if (read_button(BUTTON1))
   {
-    
+
     Serial.println(dispense_pills());
   }
 
 
 
-  if(read_button(BUTTON2))
+  if (read_button(BUTTON2))
   {
-    for(uint8_t i = 0; i < 90; i++)
+    for (uint8_t i = 0; i < 90; i++)
     {
       Serial.println(90 - i);
       pillServo.write(90 - i);
       delay(2000);
     }
-    
+
   }
   pillServo.write(86);
+  */
 }
+  
 
 
 
 
+
+void bluetooth_setup()
+{
+  while(1)
+  {
+    if (Serial.available())
+    {
+      SerialBT.write(Serial.read());
+    }
+    if (SerialBT.available())
+    {
+      Serial.write(SerialBT.read());
+    }
+    delay(20);
+
+    if(!digitalRead(LS))
+    {
+      return;
+    }
+  }
+  
+}
 
 bool dispense_pills()
 {
-  
+
   uint32_t my_time = millis();
   bool return_value = true;
 
   pillServo.write(98);
-  while(!digitalRead(LS) && return_value)
+  while (!digitalRead(LS) && return_value)
   {
-    if(millis() - my_time > 10000)
+    if (millis() - my_time > 10000)
     {
       return_value = false;
     }
   }
   delay(5);
-  while(digitalRead(LS) && return_value)
+  while (digitalRead(LS) && return_value)
   {
-    if(millis() - my_time > 10000)
+    if (millis() - my_time > 10000)
     {
       return_value = false;
     }
@@ -211,10 +233,10 @@ bool dispense_pills()
 }
 
 bool read_button(uint8_t pin)
-{  
-  for(uint8_t i = 0; i < 20; i++)
+{
+  for (uint8_t i = 0; i < 20; i++)
   {
-    if(!digitalRead(pin))
+    if (!digitalRead(pin))
     {
       return false;
     }
@@ -228,15 +250,15 @@ void check_ts()
   p = ts.getPoint();
 
   //Serial.print("p.z:"); Serial.print(p.z); Serial.print("\tp.x:"); Serial.print(p.x); Serial.print("\tp.y:"); Serial.println(p.y);
-  
+
   old_click_value = click_value;
-  if(p.z < MINPRESSURE || p.z > MAXPRESSURE)
+  if (p.z < MINPRESSURE || p.z > MAXPRESSURE)
   {
-    if(SERIAL_ON)
+    if (SERIAL_ON)
     {
       Serial.print("Pressure = "); Serial.print(p.z); Serial.println(" Out of pressure range!");
     }
-     click_value = 0;
+    click_value = 0;
   }
   else
   {
@@ -245,9 +267,9 @@ void check_ts()
     p.x = map(p.y, TS_MINY, TS_MINY, 0, tft.width());
     p.y = map(temp_x, TS_MINX, TS_MAXX, 0, tft.height());
 
-    if(p.y >= 160)
+    if (p.y >= 160)
     {
-      if(p.x <= 160)
+      if (p.x <= 160)
         click_value = 1;
       else if (p.x <= 320)
         click_value = 2;
@@ -258,21 +280,21 @@ void check_ts()
     {
       click_value = 0;
     }
-    
-    if(SERIAL_ON)
+
+    if (SERIAL_ON)
     {
       Serial.print("X = "); Serial.print(p.x);
       Serial.print("\tY = "); Serial.print(p.y);
-      Serial.print("\tPressure = "); Serial.println(p.z);  
+      Serial.print("\tPressure = "); Serial.println(p.z);
     }
   }
 
-  if(click_value != old_click_value)
+  if (click_value != old_click_value)
   {
     tft.fillRect(0, 0, 480, 35, 0xFFFF);
-    tft.setCursor(0,0);
+    tft.setCursor(0, 0);
 
-    switch(click_value)
+    switch (click_value)
     {
       case 1:
         tft.print(" Pill pressed");
@@ -298,7 +320,7 @@ void drawSdJpeg(const char *filename, int xpos, int ypos) {
 
   // Open the named file (the Jpeg decoder library will close it)
   File jpegFile = SD.open( filename, FILE_READ);  // or, file handle reference for SD library
- 
+
   if ( !jpegFile ) {
     Serial.print("ERROR: File \""); Serial.print(filename); Serial.println ("\" not found!");
     return;
@@ -340,7 +362,7 @@ void jpegRender(int xpos, int ypos) {
 
   bool swapBytes = tft.getSwapBytes();
   tft.setSwapBytes(true);
-  
+
   // Jpeg images are draw as a set of image block (tiles) called Minimum Coding Units (MCUs)
   // Typically these MCUs are 16x16 pixel blocks
   // Determine the width and height of the right and bottom edge image blocks
