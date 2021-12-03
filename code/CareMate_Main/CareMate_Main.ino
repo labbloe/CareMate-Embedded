@@ -1,15 +1,25 @@
 #include "CareMate.h"
 
+class medications
+{
+  public:
+    int bin;
+    int tim;
+    String day;
+};
+
 // OBJECT DECLARATIONS
 TFT_eSPI tft = TFT_eSPI();
 Servo pillServo;
 TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 TSPoint p;
 BluetoothSerial SerialBT;
+medications meds[7];
 
 // VARIABLE DECLARATIONS
 uint8_t click_value = 1;
 uint8_t old_click_value = 0;
+uint8_t pills_disp = 0;
 uint16_t temp_x;
 
 // BLUETOOTH CHECK
@@ -89,8 +99,11 @@ void setup()
   // DISPLAY
   tft.begin();
   tft.setRotation(3);  // landscape (all files printed in landscape only)
-  tft.fillScreen(random(0xFFFF));
+  tft.fillScreen(0x45C9);
   tft.setTextColor(TFT_BLACK, TFT_WHITE);
+  tft.setTextSize(3);
+  tft.setTextColor(TFT_BLACK, 0x45C9);
+  tft.print("Test Bluetooth Mode");
   //drawSdJpeg("/main.jpg", 0, 0);
   //drawSdJpeg("/pill_alarm.jpg", 0, 0);
   bluetooth_setup();
@@ -103,10 +116,10 @@ void setup()
 void loop()
 {
   drawSdJpeg("/main.jpg", 0, 0);
-  display_text(TIME_TEXT, "99:99");
-  display_text(TASK_BAR_TEXT, "Labbloe megabuilder likes to play halo");
-  display_text(MAIN_BOX_1, "hello");
-  display_text(MAIN_BOX_2, "fart poop cum");
+  display_text(TIME_TEXT, "12:55");
+  display_text(TASK_BAR_TEXT, "CareMate test titble bar");
+  display_text(MAIN_BOX_1, "test box 1");
+  display_text(MAIN_BOX_2, "test box 2");
   delay(1000);
   display_rect(TIME_TEXT);
   display_rect(TASK_BAR_TEXT);
@@ -115,13 +128,20 @@ void loop()
   delay(1000);
 
   drawSdJpeg("/pill_alarm.jpg", 0, 0);
-  display_text(SELECTION_BOX_1, "Wednesday 11:11");
-  display_text(SELECTION_BOX_2, "Friday 22:22");
-  display_text(SELECTION_BOX_3, "Saturday 33:33");
+  display_text(TASK_BAR_TEXT, "Test medication/alarm screen");
+  display_text(SELECTION_BOX_1, "Test day 1");
+  display_text(SELECTION_BOX_2, "Test day 2");
+  display_text(SELECTION_BOX_3, "Test day 3");
   delay(1000);
+  display_rect(TASK_BAR_TEXT);
   display_rect(SELECTION_BOX_1);
   display_rect(SELECTION_BOX_2);
   display_rect(SELECTION_BOX_3);
+  delay(1000);
+
+  //load_second_display("wifi");
+  load_second_display_array("medication");
+  delay(3000);
   
   
 
@@ -151,13 +171,116 @@ void loop()
   
 
 
+void load_second_display_array(const String type)
+{
+  StaticJsonDocument<1600> doc;
+  File theFile;
+  String SD_Read;
 
+  theFile = SD.open(("/" + type + ".txt."));
+  if (theFile)
+  {
+    Serial.println("Reading " + type + ".txt...");
+    while (theFile.available())
+    {
+      SD_Read += (char)theFile.read();
+    }
+    theFile.close();
+    Serial.println(SD_Read);
 
+    DeserializationError error = deserializeJson(doc, SD_Read);
+    if(error)
+    {
+      Serial.print("deserializeJson() failed: "); Serial.println(error.f_str());
+    }
+    else
+    {
+      for(uint8_t i = 0; i < 7; i++)
+      {
+        String value = doc["list"][i];
+        StaticJsonDocument<200> tempDoc;
+
+        DeserializationError error2 = deserializeJson(tempDoc, value);
+        if(error2)
+        {
+          Serial.print("deserializeJson() failed: "); Serial.println(error2.f_str());
+        }
+        else
+        {
+          const int bin = tempDoc["bin"];
+          const String day = tempDoc["day"];
+          const int tim = tempDoc["time"];
+          
+          meds[i].bin = bin;
+          meds[i].day = day;
+          meds[i].tim = tim;
+
+          //Serial.print("Index: "); Serial.print(i); Serial.print(" Bin: "); Serial.print(meds[i].bin); Serial.print(" Day: "); Serial.print(meds[i].bin); Serial.print(" Time: "); Serial.println(meds[i].tim);
+        }
+      }
+      
+      drawSdJpeg("/pill_alarm.jpg", 0, 0);
+      display_text(TASK_BAR_TEXT, "Print test jason array");
+      for(int8_t i = pills_disp; i < 7 && i - pills_disp < 3; i++)
+      {
+          display_text(SELECTION_BOX_1 + i, (meds[i].day + " " + meds[i].tim/100 + ":" + meds[i].tim%100));
+      }
+    }
+  } 
+  else
+  {
+    Serial.println("Error opening file");
+  }
+  
+  //DeserializationError error = deserializeJson(doc, tmp);
+}
+
+void load_second_display(const String type)
+{
+  StaticJsonDocument<100> doc;
+  File theFile;
+  String SD_Read;
+
+  theFile = SD.open(("/" + type + ".txt."));
+  if (theFile)
+  {
+    Serial.println("Reading " + type + ".txt...");
+    while (theFile.available())
+    {
+      SD_Read += (char)theFile.read();
+    }
+    theFile.close();
+    Serial.println(SD_Read);
+
+    DeserializationError error = deserializeJson(doc, SD_Read);
+    if(error)
+    {
+      Serial.print("deserializeJson() failed: "); Serial.println(error.f_str());
+    }
+    else
+    {
+      const String ssid = doc["SSID"];  Serial.print("Wifi SSID: ");      Serial.println(ssid);
+      const String pass = doc["pass"];  Serial.print("Wifi Password: ");  Serial.println(pass);
+      
+      drawSdJpeg("/pill_alarm.jpg", 0, 0);
+      display_text(TASK_BAR_TEXT, "Test of reading Wifi data from SD card");
+      display_text(SELECTION_BOX_1, ("Wifi Login"));
+      display_text(SELECTION_BOX_2, (ssid));      
+      display_text(SELECTION_BOX_3, (pass));    
+    }
+  } 
+  else
+  {
+    Serial.println("Error opening file");
+  }
+  
+  //DeserializationError error = deserializeJson(doc, tmp);
+}
 
 void bluetooth_setup()
 {
-  StaticJsonDocument<400> doc;
-  File questionFile;
+  StaticJsonDocument<800> doc;
+  File theFile;
 
   while(1)
   {
@@ -168,92 +291,64 @@ void bluetooth_setup()
     if (SerialBT.available())
     {
       String tmp = SerialBT.readString();
-      Serial.println(tmp);
+      Serial.print("Message over BT: "); Serial.println(tmp);
       DeserializationError error = deserializeJson(doc, tmp);
       if(error)
       {
-        Serial.print(F("deserializeJson() failed: "));
-        Serial.println(error.f_str());
+        Serial.print(F("deserializeJson() failed: ")); Serial.println(error.f_str());
       }
       else
       {
         const String type = doc["type"];
-        Serial.println(type);
+        Serial.print("Type: "); Serial.println(type);
+
+        SD.remove(("/" + type + ".txt."));
+        Serial.print("Writing to "); Serial.print(type); Serial.println(".txt...");
+        theFile = SD.open(("/" + type + ".txt."), FILE_APPEND);
+        if(theFile)
+        {
+          theFile.println(tmp);
+          theFile.close(); 
+          Serial.print("Done writing to "); Serial.print(type); Serial.println(".txt");
+        }
+        else
+        {
+          Serial.println("File failed to open!");
+        }
+
         if(type == "notification")
         {
-          const String email = doc["email"];
-          const char* phone = doc["phone"];
-          Serial.println(email);
-          Serial.println(phone);
+          const String number = doc["email"]; Serial.print("Notification Email: "); Serial.println(number);
+          const String phone = doc["phone"];  Serial.print("Notification Phone: "); Serial.println(phone);
         }
         else if(type == "alarm")
         {
-          const String day = doc["day"];
-          const int time = doc["time"];
-          Serial.println(day);
-          Serial.println(time);
+          const String day = doc["day"];  Serial.print("Alarm Day: ");  Serial.println(day);
+          const String tim = doc["time"]; Serial.print("Alarm Time: "); Serial.println(tim);
         }
         else if(type == "question")
         {
-          const int number = doc["number"];
-          const String question = doc["question"];
-          Serial.println(number);
-          Serial.println(question);
-  
-          Serial.println("Reading contents of questions.txt...");
-          questionFile = SD.open("/questions.txt", FILE_READ);
-          if(questionFile)
-          {
-            while(questionFile.available())
-            {
-              Serial.write(questionFile.read());
-            }
-  
-            questionFile.close();
-          }
-          else
-          {
-            Serial.println("File failed to open!");
-          }
-  
-          Serial.print("Writing to questions.txt...");
-          questionFile = SD.open("/questions.txt", FILE_APPEND);
-          if(questionFile)
-          {
-            questionFile.println(tmp);
-            questionFile.close(); 
-            Serial.print("Done writing to questions.txt");
-          }
-          else
-          {
-            Serial.println("File failed to open!");
-          }
+          const String number = doc["number"];    Serial.print("Question Number: ");  Serial.println(number);
+          const String question = doc["question"];  Serial.print("Question Text: ");  Serial.println(question);
         }
         else if(type == "medication")
         {
-          const int bin = doc["bin"];
-          const String day = doc["day"];
-          const int time = doc["time"];
-          Serial.println(bin);
-          Serial.println(day);
-          Serial.println(time);
+          const String bin = doc["bin"];  Serial.print("Medication Bin: ");   Serial.println(bin);
+          const String day = doc["day"];  Serial.print("Medication Day: ");   Serial.println(day);
+          const String tim = doc["time"]; Serial.print("Medication Time: ");  Serial.println(tim);
         }
         else if(type == "wifi")
         {
-          const String ssid = doc["SSID"];
-          const String pass = doc["pass"];
-          Serial.println(ssid);
-          Serial.println(pass);
+          const String ssid = doc["SSID"];  Serial.print("Wifi SSID: ");      Serial.println(ssid);
+          const String pass = doc["pass"];  Serial.print("Wifi Password: ");  Serial.println(pass);
         }
       }
-  }
-
+    }
     if(!digitalRead(LS))
     {
       return;
     }
   }
-  
 }
 
 bool display_rect(uint8_t selection)
@@ -286,7 +381,7 @@ bool display_rect(uint8_t selection)
   }
 }
 
-bool display_text(uint8_t selection, char * input)
+bool display_text(uint8_t selection, String input)
 {
   switch(selection)
   {
@@ -468,7 +563,7 @@ void drawSdJpeg(const char *filename, int xpos, int ypos) {
 
   if (decoded) {
     // print information about the image to the serial port
-    jpegInfo();
+    //jpegInfo();
     // render the image onto the screen at given coordinates
     jpegRender(xpos, ypos);
   }
