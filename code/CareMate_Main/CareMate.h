@@ -21,15 +21,15 @@
 #define MIC 27
 
 // TOUCHSCREEN DEFINES
-#define TS_MINX 115
-#define TS_MINY 50
-#define TS_MAXX 790
-#define TS_MAXY 950
+#define TS_MINX 170
+#define TS_MINY 105
+#define TS_MAXX 780
+#define TS_MAXY 940
 #define MINPRESSURE 10
 #define MAXPRESSURE 1000
 
 // PRINT DEFINES
-#define SERIAL_ON 0
+#define SERIAL_ON 1
 
 // DISPLAY DEFINES
 #define BG 0xE71C
@@ -43,6 +43,15 @@
 #define SELECTION_BOX_1 4
 #define SELECTION_BOX_2 5
 #define SELECTION_BOX_3 6
+#define ALARMS 7
+#define MEDICATION 8
+#define MESSAGES 9
+#define NO_SELECTION 10
+
+#define MAIN_SCREEN 0
+#define THREE_BAR_SCREEN 1
+
+
 
 // INCLUDES
 #include <SPI.h>

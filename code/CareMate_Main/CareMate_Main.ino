@@ -17,10 +17,9 @@ BluetoothSerial SerialBT;
 medications meds[7];
 
 // VARIABLE DECLARATIONS
-uint8_t click_value = 1;
-uint8_t old_click_value = 0;
+uint8_t click_value = NO_SELECTION;
+uint8_t last_click_value = TIME_TEXT;
 uint8_t pills_disp = 0;
-uint16_t temp_x;
 
 // BLUETOOTH CHECK
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
@@ -38,10 +37,9 @@ void setup()
   Serial.begin(115200);
 
   // OUTPUTS
-  digitalWrite(LS, LOW);
   pinMode(LS, INPUT_PULLUP);
-  pinMode(BUTTON1, INPUT_PULLUP);
-  pinMode(BUTTON2, INPUT_PULLUP);
+  pinMode(BUTTON1, INPUT);
+  pinMode(BUTTON2, INPUT);
   pinMode(SERVO, OUTPUT);
 
   // BLUETOOTH
@@ -104,7 +102,7 @@ void setup()
   tft.setTextSize(3);
   tft.setTextColor(TFT_BLACK, 0x45C9);
   tft.print("Test Bluetooth Mode");
-  //drawSdJpeg("/main.jpg", 0, 0);
+  drawSdJpeg("/main.jpg", 0, 0);
   //drawSdJpeg("/pill_alarm.jpg", 0, 0);
   bluetooth_setup();
 }
@@ -114,7 +112,44 @@ void setup()
 
 
 void loop()
-{
+{  
+  last_click_value = click_value;
+  click_value = check_ts(MAIN_SCREEN);
+
+  Serial.print("Selection: ");
+  Serial.println(click_value);
+
+  if(click_value != last_click_value)
+  {
+    display_rect(MAIN_BOX_1);
+
+    if(click_value == ALARMS)
+    {
+      Serial.println("Alarm");
+      display_text(MAIN_BOX_1, "Alarms");
+    }
+    else if(click_value == MEDICATION)
+    {
+      Serial.println("Medication");
+      display_text(MAIN_BOX_1, "Medication");
+    }
+    else if(click_value == MESSAGES)
+    {
+      Serial.println("Message");
+      display_text(MAIN_BOX_1, "Messages");
+    }
+    else
+    {
+      Serial.println("No selection");
+      display_text(MAIN_BOX_1, "No selection");
+    }
+
+    delay(100);
+  }
+  
+
+
+  /*
   drawSdJpeg("/main.jpg", 0, 0);
   display_text(TIME_TEXT, "12:55");
   display_text(TASK_BAR_TEXT, "CareMate test titble bar");
@@ -125,7 +160,7 @@ void loop()
   display_rect(TASK_BAR_TEXT);
   display_rect(MAIN_BOX_1);
   display_rect(MAIN_BOX_2);
-  delay(1000);
+  delay(1000); 
 
   drawSdJpeg("/pill_alarm.jpg", 0, 0);
   display_text(TASK_BAR_TEXT, "Test medication/alarm screen");
@@ -142,9 +177,7 @@ void loop()
   //load_second_display("wifi");
   load_second_display_array("medication");
   delay(3000);
-  
-  
-
+  */
   
   /*
   if (read_button(BUTTON1))
@@ -461,7 +494,7 @@ bool dispense_pills()
 
 bool read_button(uint8_t pin)
 {
-  for (uint8_t i = 0; i < 20; i++)
+  for (uint8_t i = 0; i < 10; i++)
   {
     if (!digitalRead(pin))
     {
@@ -472,71 +505,49 @@ bool read_button(uint8_t pin)
   return true;
 }
 
-void check_ts()
+uint8_t check_ts(uint8_t screen_state)
 {
+  uint8_t ret_val = NO_SELECTION;
+  uint16_t temp_x;
+
   p = ts.getPoint();
 
-  //Serial.print("p.z:"); Serial.print(p.z); Serial.print("\tp.x:"); Serial.print(p.x); Serial.print("\tp.y:"); Serial.println(p.y);
+  Serial.print("p.z:"); Serial.print(p.z); Serial.print("\tp.x:"); Serial.print(p.x); Serial.print("\tp.y:"); Serial.println(p.y);
 
-  old_click_value = click_value;
-  if (p.z < MINPRESSURE || p.z > MAXPRESSURE)
+  if(p.z == -1) //(p.z < MINPRESSURE || p.z > MAXPRESSURE)
   {
-    if (SERIAL_ON)
-    {
-      Serial.print("Pressure = "); Serial.print(p.z); Serial.println(" Out of pressure range!");
-    }
-    click_value = 0;
+    ret_val = NO_SELECTION;
   }
   else
   {
     // Scale from ~0->1000 to tft.width using the calibration #'s
     temp_x = p.x;
-    p.x = map(p.y, TS_MINY, TS_MINY, 0, tft.width());
+    p.x = map(p.y, TS_MAXY, TS_MINY, 0, tft.width());
     p.y = map(temp_x, TS_MINX, TS_MAXX, 0, tft.height());
+    
+    Serial.print("p.z:"); Serial.print(p.z); Serial.print("\tp.x:"); Serial.print(p.x); Serial.print("\tp.y:"); Serial.println(p.y);
 
-    if (p.y >= 160)
+    if(screen_state == MAIN_SCREEN)
     {
-      if (p.x <= 160)
-        click_value = 1;
-      else if (p.x <= 320)
-        click_value = 2;
-      else
-        click_value = 3;
-    }
-    else
-    {
-      click_value = 0;
-    }
-
-    if (SERIAL_ON)
-    {
-      Serial.print("X = "); Serial.print(p.x);
-      Serial.print("\tY = "); Serial.print(p.y);
-      Serial.print("\tPressure = "); Serial.println(p.z);
-    }
-  }
-
-  if (click_value != old_click_value)
-  {
-    tft.fillRect(0, 0, 480, 35, 0xFFFF);
-    tft.setCursor(0, 0);
-
-    switch (click_value)
-    {
-      case 1:
-        tft.print(" Pill pressed");
-        break;
-      case 2:
-        tft.print(" Mail pressed");
-        break;
-      case 3:
-        tft.print(" Alarm pressed");
-        break;
-      default:
-        tft.print(" Nothing is clicked");
-        break;
+      if(p.y >= 240)
+      {
+        if(p.x <= 165)
+        {
+          ret_val = ALARMS;
+        }
+        else if(p.x >= 315)
+        {
+          ret_val = MESSAGES;
+        }
+        else
+        {
+          ret_val = MEDICATION;
+        }
+      }
     }
   }
+
+  return ret_val;
 }
 
 //####################################################################################################
