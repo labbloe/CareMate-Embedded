@@ -48,7 +48,7 @@
 #define AUTHOR_EMAIL "care.mate.msg@gmail.com"
 #define AUTHOR_PASSWORD "Adidas11"
 
-#define RECIPIENT_EMAIL "jdsdgt@mst.edu"
+#define RECIPIENT_EMAIL "jackschott99@gmail.com"
 
 /* The SMTP Session object used for Email sending */
 SMTPSession smtp;

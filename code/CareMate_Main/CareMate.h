@@ -51,18 +51,42 @@
 #define MAIN_SCREEN 0
 #define THREE_BAR_SCREEN 1
 
+#define WIFI_SSID "Bill Wi, the Science Fi"
+#define WIFI_PASSWORD "purplepotato925"
+#define SMTP_HOST "smtp.gmail.com"
+#define SMTP_PORT 465
+#define AUTHOR_EMAIL "care.mate.msg@gmail.com"
+#define AUTHOR_PASSWORD "Adidas11"
 
+#define RECIPIENT_EMAIL "jackschott99@gmail.com"
 
 // INCLUDES
 #include <SPI.h>
 #include <FS.h>
 #include <SD.h>
-#include <TFT_eSPI.h>
-#include <JPEGDecoder.h>
+#include <WiFi.h>
+#include <Arduino.h>
+
+#include "TFT_eSPI.h"
+#include "JPEGDecoder.h"
+#include "ESP32Servo.h"
+#include "ArduinoJson.h"
 #include "TouchScreen.h"
-#include <ESP32Servo.h>
 #include "BluetoothSerial.h"
-#include <ArduinoJson.h>
+#include "ESP_Mail_Client.h"
+
+bool read_button(uint8_t pin);
+bool dispense_pills();
+bool display_text(uint8_t selection, String input);
+bool display_rect(uint8_t selection);
+void bluetooth_setup();
+void load_second_display(const String type);
+void load_second_display_array(const String type);
+uint8_t check_ts(uint8_t screen_state);
+void drawSdJpeg(const char *filename, int xpos, int ypos);
+void jpegRender(int xpos, int ypos);
+void jpegInfo();
+void showTime(uint32_t msTime);
 
 #endif
 
