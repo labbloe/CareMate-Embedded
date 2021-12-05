@@ -15,12 +15,6 @@ class notifcation_class
     String phone;
 };
 
-class question_class
-{
-  public:
-    String question;
-};
-
 class wifi_class
 {
   public:
@@ -41,9 +35,10 @@ class data_class
   public:
     medication_class medications[7];
     notifcation_class notification;
-    question_class questions[7];
+    String questions[7];
     wifi_class wifi;
     alarm_class alarms[7];
+    int question_time;
 };
 
 // OBJECT DECLARATIONS
@@ -82,7 +77,7 @@ void setup()
   Serial.begin(115200);
 
   // OUTPUTS
-  pinMode(LS, INPUT_PULLUP);
+  pinMode(LS, INPUT_PULLDOWN);
   pinMode(BUTTON1, INPUT);
   pinMode(BUTTON2, INPUT);
   pinMode(SERVO, OUTPUT);
@@ -98,7 +93,7 @@ void setup()
   ESP32PWM::allocateTimer(3);
   pillServo.setPeriodHertz(50);// Standard 50hz servo
   pillServo.attach(SERVO, 700, 2300);
-  analogSetWidth(10);
+  analogSetWidth(10);  
 
   // SPI
   //digitalWrite(TFT_CS, HIGH); // Set CS's to high to avoid bus contention
@@ -179,6 +174,41 @@ void setup()
 
 void loop()
 {
+  Serial.println("one");
+  pillServo.write(86);
+  delay(400);
+  pillServo.write(86);
+  delay(400);
+  pillServo.write(86);
+  delay(400);
+
+  delay(3000);
+
+  Serial.println("two");
+  pillServo.write(88);
+  delay(255);
+  pillServo.write(88);
+  delay(255);
+  pillServo.write(88);
+  delay(255);
+
+  delay(3000);
+
+  Serial.println("three");
+  pillServo.write(87);
+  delay(476);
+  pillServo.write(87);
+  delay(476);
+  pillServo.write(87);
+  delay(476);
+
+  while(1)
+  {
+    Serial.println("what");
+  }
+
+
+  
   update_time();
 
 
@@ -298,6 +328,10 @@ void update_time()
         hours = 0;
       }
     }
+
+    check_alarms();
+    check_pills();
+    check_questions();
   }
 
   if(first_start || (screen_state == MAIN_SCREEN && update_screen))
@@ -318,6 +352,40 @@ void update_time()
 
     display_rect(TIME_TEXT);
     display_text(TIME_TEXT, temp_str);
+  }
+}
+
+void check_alarms()
+{
+  for(uint8_t i = 0; i < 7; i++)
+  {
+    if(data.alarms[i].time == (hours * 100 + minutes))
+    {
+
+      return;
+    }
+  }
+}
+
+void check_pills()
+{
+  for(uint8_t i = 0; i < 7; i++)
+  {
+    if(data.medications[i].time == (hours * 100 + minutes))
+    {
+      return;
+    }
+  }
+}
+
+void check_questions()
+{
+  for(uint8_t i = 0; i < 7; i++)
+  {
+    if(data.alarms[i].time == (hours * 100 + minutes))
+    {
+      return;
+    }
   }
 }
 
@@ -383,10 +451,11 @@ void json_load(const String type)
           
           if(type == "question")
           {
-            data.questions[i].question = json_array_element;
+            data.questions[i] = json_array_element;
 
             if(!i)
             {
+              data.question_time = doc["time"];
               Serial.print("\n\tQuestion");
             }
             Serial.print("\n\t\tques\t");
@@ -502,7 +571,7 @@ void bluetooth_setup()
         }
       }
     }
-    if(!digitalRead(LS))
+    if(digitalRead(LS))
     {
       return;
     }
@@ -592,7 +661,6 @@ bool display_text(uint8_t selection, String input)
 
 bool dispense_pills()
 {
-
   uint32_t my_time = millis();
   bool return_value = true;
 
@@ -617,17 +685,36 @@ bool dispense_pills()
   return return_value;
 }
 
-bool read_button(uint8_t pin)
+uint8_t read_button(uint8_t pin)
 {
+  uint8_t true_track = 0;
+  uint8_t false_track = 0;
+
   for (uint8_t i = 0; i < 10; i++)
   {
-    if (!digitalRead(pin))
+    if(digitalRead(pin))
     {
-      return false;
+      true_track++;
+    }
+    else
+    {
+      false_track++;
     }
     delay(1);
   }
-  return true;
+
+  if(true_track == 10)
+  {
+    return 1;
+  }
+  else if(false_track == 10)
+  {
+    return 0;
+  }
+  else
+  {
+    return 2;
+  }
 }
 
 uint8_t check_ts()

@@ -75,13 +75,16 @@
 #include "BluetoothSerial.h"
 #include "ESP_Mail_Client.h"
 
-bool read_button(uint8_t pin);
-bool dispense_pills();
-bool display_text(uint8_t selection, String input);
-bool display_rect(uint8_t selection);
+void update_time();
+void check_alarms();
+void check_pills();
+void check_questions();
+void json_load(const String type);
 void bluetooth_setup();
-void load_second_display(const String type);
-void load_second_display_array(const String type);
+bool display_rect(uint8_t selection);
+bool display_text(uint8_t selection, String input);
+bool dispense_pills();
+uint8_t read_button(uint8_t pin);
 uint8_t check_ts(uint8_t screen_state);
 void drawSdJpeg(const char *filename, int xpos, int ypos);
 void jpegRender(int xpos, int ypos);
