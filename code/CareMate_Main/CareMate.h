@@ -89,8 +89,9 @@ void jpegRender(int xpos, int ypos);
 void jpegInfo();
 void showTime(uint32_t msTime);
 void trigger_alarm();
-bool dispense_pills();
+void dispense_pills();
 void display_questions();
+void display_top_bar();
 
 #endif
 

@@ -60,9 +60,9 @@ data_class data;
 // VARIABLE DECLARATIONS
 uint8_t pills_disp = 0;
 bool update_screen;
-uint8_t hours = 9;
-uint8_t minutes = 12;
-uint8_t day = 5;
+uint8_t hours = 8;
+uint8_t minutes = 30;
+uint8_t day = 1;
 uint32_t base_time = millis();
 uint8_t screen_state;
 bool update_time_now;
@@ -90,7 +90,7 @@ void setup()
   pinMode(SERVO, OUTPUT);
   pinMode(SPEAKER, OUTPUT);
 
-  digitalWrite(SPEAKER, LOW);
+  digitalWrite(SPEAKER, HIGH);
 
   // BLUETOOTH
   SerialBT.begin("CareMate"); //Bluetooth device name
@@ -173,8 +173,8 @@ void loop()
       case MAIN_SCREEN:
         Serial.println("MAIN_SCREEN");
         drawSdJpeg("/main.jpg", 0, 0);
-        display_text(TASK_BAR_TEXT, "        CareMate       Team JJJJ");
-        display_text(MAIN_BOX_1, "Dispenses Left: " + dispenses_left);
+        display_top_bar();
+        display_text(MAIN_BOX_1, ("Dispenses Left: "));
         display_text(MAIN_BOX_2, formatted_time(data.alarms[0].day, data.alarms[0].time));
         update_screen = false;
         update_time_now = true;
@@ -195,6 +195,7 @@ void loop()
         display_text(SELECTION_BOX_1, formatted_time(data.alarms[0].day, data.alarms[0].time));
         display_text(SELECTION_BOX_2, formatted_time(data.alarms[1].day, data.alarms[1].time));
         display_text(SELECTION_BOX_3, formatted_time(data.alarms[2].day, data.alarms[2].time));
+        //trigger_alarm();
         break;
       case MEDICATION:
         Serial.println("MEDICATION");
@@ -210,9 +211,9 @@ void loop()
         drawSdJpeg("/pill_alarm.jpg", 0, 0);
         display_text(TASK_BAR_TEXT, "     Press Option to Email Message");
         update_screen = false;
-        display_text(SELECTION_BOX_1, "Record message");
-        display_text(SELECTION_BOX_2, "   Call me");
-        display_text(SELECTION_BOX_3, "    Urgent");
+        display_text(SELECTION_BOX_1, " Record message");
+        display_text(SELECTION_BOX_2, "    Call me");
+        display_text(SELECTION_BOX_3, "     Urgent");
         break;
     }
   }
@@ -246,7 +247,7 @@ String formatted_time(const String day_entry, const int time_entry)
   itoa(temp_mins, itoa_ca, 10);
   ret_val += temp_mins < 10 ? "0" : "";
   ret_val += itoa_ca;
-  ret_val += temp_hours > 12 ? " PM" : " AM";
+  ret_val += hours > 12 ? " PM" : " AM";
 
   return ret_val;
 }
@@ -255,24 +256,31 @@ void update_time()
 {
   uint32_t temp_time = millis() - base_time;
   bool time_changed = false;
+  uint8_t temp_hours;
 
   if(temp_time > (1000 * 60))
   {
     time_changed = true;
     base_time += (1000 * 60);
-
     minutes++;
-    if(minutes == 60)
-    {
-      minutes = 0;
-      hours++;
-      if(hours == 24)
-      {
-        hours = 0;
-      }
-    }
+  }
 
-    check_new_time();
+  if(minutes == 60)
+  {
+    minutes = 0;
+    hours++;
+    time_changed = true;
+  }
+  if(hours == 24)
+  {
+    hours = 0;
+    day++;
+    time_changed = true;
+  }
+  if(day == 7)
+  {
+    day = 0;
+    time_changed = true;
   }
 
   if(screen_state == MAIN_SCREEN && (time_changed || update_time_now))
@@ -282,44 +290,90 @@ void update_time()
     String temp_str;
     char itoa_ca[5];
 
-    itoa((hours == 0 ? 12 : hours % 12), itoa_ca, 10);
+    if(hours == 24)
+    {
+      temp_hours = 0;
+    }
+    else if(hours > 12)
+    {
+      temp_hours = hours % 12;
+    }
+    else
+    {
+      temp_hours = hours;
+    }
+
+    itoa((temp_hours == 0 ? 12 : temp_hours % 13), itoa_ca, 10);
     temp_str += itoa_ca;
     temp_str += ":";
     itoa(minutes, itoa_ca, 10);
     temp_str += minutes < 10 ? "0" : "";
     temp_str += itoa_ca;
-    temp_str += hours > 12 ? " PM" : " AM";
+    temp_str += hours >= 12 ? " PM" : " AM";
 
     Serial.println(temp_str);
 
     display_rect(TIME_TEXT);
     display_text(TIME_TEXT, temp_str);
   }
+
+  check_new_time();
+}
+
+void display_top_bar()
+{
+  String dv = "";
+
+  dv += int_to_day(day);
+
+
+  if(day == 0 || day == 1)
+  {
+    dv += "   ";
+
+  }
+  else if(day == 2)
+  {
+    dv += "  ";
+  }
+  else if(day == 5)
+  {
+    dv += "   ";
+  }
+  else if(day == 4 || day == 6)
+  {
+    dv += " ";
+  }
+
+  dv += "       CareMate       Team JJJJ";
+
+  display_rect(TASK_BAR_TEXT);
+  display_text(TASK_BAR_TEXT, dv);
 }
 
 String int_to_day(uint8_t input_day)
 {
-  if(input_day == 0)
+  if(input_day == 1)
   {
     return "Monday";
   }
-  if(input_day == 1)
+  if(input_day == 2)
   {
     return "Tuesday";
   }
-  if(input_day == 2)
+  if(input_day == 3)
   {
     return "Wednesday";
   }
-  if(input_day == 3)
+  if(input_day == 4)
   {
     return "Thursday";
   }
-  if(input_day == 4)
+  if(input_day == 5)
   {
     return "Friday";
   }
-  if(input_day == 5)
+  if(input_day == 6)
   {
     return "Saturday";
   }
@@ -334,6 +388,18 @@ void check_new_time()
     {
       dispense_pills();
     }
+    /*
+    Serial.print("data.alarms[i].day = ");
+    Serial.print(data.alarms[i].day);
+
+    Serial.print("\tint_to_day(day) = ");
+    Serial.print(int_to_day(day));
+
+    Serial.print("\tdata.alarms[i].time = ");
+    Serial.print(data.alarms[i].time);
+
+    Serial.print("\thours * 100 + minutes = ");
+    Serial.println(hours * 100 + minutes);*/
     if(data.alarms[i].day == int_to_day(day) && data.alarms[i].time == (hours * 100 + minutes))
     {
       trigger_alarm();
@@ -347,36 +413,41 @@ void check_new_time()
 
 void trigger_alarm()
 {
+  for(uint j = 0; j < 10; j++)
+  {
+    for(uint16_t i = 0; i < 1000; i++)
+    {
+      digitalWrite(SPEAKER,LOW);
+      delayMicroseconds(200);
+      digitalWrite(SPEAKER,HIGH);
+      delayMicroseconds(200);
+    }
+
+    for(uint16_t i = 0; i < 500; i++)
+    {
+      digitalWrite(SPEAKER,LOW);
+      delayMicroseconds(400);
+      digitalWrite(SPEAKER,HIGH);
+      delayMicroseconds(400);
+    }
+  }
+
   Serial.println("Trigger alarm");
 }
 
-bool dispense_pills()
+void dispense_pills()
 {
   dispenses_left--;
+  update_screen = true;
+
   Serial.println("Dispense pills");
 
-  uint32_t my_time = millis();
-  bool return_value = true;
+  pillServo.write(80);
+  delay(100);
+  pillServo.write(85);
+  delay(1200);
 
-  pillServo.write(98);
-  while (!digitalRead(LS) && return_value)
-  {
-    if (millis() - my_time > 10000)
-    {
-      return_value = false;
-    }
-  }
-  delay(5);
-  while (digitalRead(LS) && return_value)
-  {
-    if (millis() - my_time > 10000)
-    {
-      return_value = false;
-    }
-  }
   pillServo.write(90);
-
-  return return_value;
 }
 
 void display_questions()
@@ -637,6 +708,10 @@ bool display_text(uint8_t selection, String input)
       tft.setTextSize(3);
       tft.setTextColor(0x0000, BOX);
       tft.print(input);
+      if(input == "Dispenses Left: ")
+      {
+        tft.print(dispenses_left);
+      }
       break;
     case MAIN_BOX_2:
       tft.setCursor(50, 182);
@@ -740,6 +815,22 @@ uint8_t check_ts()
       {
         screen_state = BT_SETUP;
         update_screen = true;
+      }
+      else if(p.y <= 40 && p.x >= 440)
+      {
+        minutes++;
+        update_time_now = true;
+        update_time();
+        Serial.println("Minute Added");
+        delay(1);
+      }
+      else if(p.y <= 140 && p.y >= 180 && p.x >= 440)
+      {
+        hours++;
+        update_time_now = true;
+        update_time();
+        Serial.println("Hours Added");
+        delay(100);
       }
     }
     else if(screen_state == ALARMS)
