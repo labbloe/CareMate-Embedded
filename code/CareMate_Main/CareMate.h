@@ -47,9 +47,8 @@
 #define MEDICATION 8
 #define MESSAGES 9
 #define NO_SELECTION 10
-
-#define MAIN_SCREEN 0
-#define THREE_BAR_SCREEN 1
+#define MAIN_SCREEN 11
+#define BT_SETUP 12
 
 #define WIFI_SSID "Bill Wi, the Science Fi"
 #define WIFI_PASSWORD "purplepotato925"
@@ -83,13 +82,15 @@ void json_load(const String type);
 void bluetooth_setup();
 bool display_rect(uint8_t selection);
 bool display_text(uint8_t selection, String input);
-bool dispense_pills();
 uint8_t read_button(uint8_t pin);
-uint8_t check_ts(uint8_t screen_state);
+uint8_t check_ts();
 void drawSdJpeg(const char *filename, int xpos, int ypos);
 void jpegRender(int xpos, int ypos);
 void jpegInfo();
 void showTime(uint32_t msTime);
+void trigger_alarm();
+bool dispense_pills();
+void display_questions();
 
 #endif
 
@@ -124,3 +125,50 @@ void showTime(uint32_t msTime);
     -screen layout notes
     top bar goes down 18 pixels
   */
+
+
+
+
+/*
+const char* ssid       = "YOUR_SSID";
+const char* password   = "YOUR_PASS";
+
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = 3600;
+const int   daylightOffset_sec = 3600;
+
+void printLocalTime()
+{
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return;
+  }
+  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+}
+
+void setup()
+{
+  Serial.printf("Connecting to %s ", ssid);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.print(".");
+  }
+  Serial.println(" CONNECTED");
+  
+  //init and get the time
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  printLocalTime();
+
+  //disconnect WiFi as it's no longer needed
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+}
+
+void loop()
+{
+  delay(1000);
+  printLocalTime();
+}
+*/

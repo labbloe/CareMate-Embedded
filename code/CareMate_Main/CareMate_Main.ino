@@ -1,5 +1,12 @@
 #include "CareMate.h"
 
+class int_list
+{
+  uint8_t num1;
+  uint8_t num2;
+  uint8_t num3;
+};
+
 class medication_class
 {
   public:
@@ -51,15 +58,15 @@ SMTPSession smtp;
 data_class data;
 
 // VARIABLE DECLARATIONS
-uint8_t click_value = NO_SELECTION;
-uint8_t last_click_value = TIME_TEXT;
 uint8_t pills_disp = 0;
-bool testBool = true;
+bool update_screen;
 uint8_t hours = 9;
 uint8_t minutes = 12;
+uint8_t day = 5;
 uint32_t base_time = millis();
 uint8_t screen_state;
-bool first_start;
+bool update_time_now;
+uint8_t dispenses_left = 7;
 
 // BLUETOOTH CHECK
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
@@ -81,6 +88,9 @@ void setup()
   pinMode(BUTTON1, INPUT);
   pinMode(BUTTON2, INPUT);
   pinMode(SERVO, OUTPUT);
+  pinMode(SPEAKER, OUTPUT);
+
+  digitalWrite(SPEAKER, LOW);
 
   // BLUETOOTH
   SerialBT.begin("CareMate"); //Bluetooth device name
@@ -100,7 +110,7 @@ void setup()
   //digitalWrite(CARD_CS, HIGH);
   digitalWrite(15, HIGH); // TFT screen chip select
   digitalWrite(5, HIGH); // SD card chips select, must use GPIO 5 (ESP32 SS)
-
+  
   // SD CARD
   if (!SD.begin(SD_CS))
   {
@@ -137,27 +147,11 @@ void setup()
   // DISPLAY
   tft.begin();
   tft.setRotation(3);  // landscape (all files printed in landscape only)
-  tft.fillScreen(0x45C9);
-  tft.setTextColor(TFT_BLACK, TFT_WHITE);
-  tft.setTextSize(3);
-  tft.setTextColor(TFT_BLACK, 0x45C9);
-  tft.print("Test Bluetooth Mode");
-
-  drawSdJpeg("/main.jpg", 0, 0);
-  screen_state = MAIN_SCREEN;
-  display_text(TIME_TEXT, "BT Setup");
-  display_text(TASK_BAR_TEXT, "Press top button to exit Bluetooth setup");
-  bluetooth_setup();
-  display_rect(TIME_TEXT);
-  display_rect(TASK_BAR_TEXT);
-  display_text(TASK_BAR_TEXT, "        CareMate       Team JJJJ");
-
-  //screen_state = THREE_BAR_SCREEN;
-  //drawSdJpeg("/pill_alarm.jpg", 0, 0);
   
+  //bluetooth_setup(); 
+  //get_time_wifi();
 
   Serial.print("\n\nData\n");
-
   json_load("medication");
   json_load("alarm");
   json_load("notification");
@@ -166,156 +160,105 @@ void setup()
 
   Serial.print("\n\n");
 
-  first_start = true;
+  update_screen = true;
+  screen_state = MAIN_SCREEN;
 }
-
- 
-
 
 void loop()
 {
-  Serial.println("one");
-  pillServo.write(86);
-  delay(400);
-  pillServo.write(86);
-  delay(400);
-  pillServo.write(86);
-  delay(400);
-
-  delay(3000);
-
-  Serial.println("two");
-  pillServo.write(88);
-  delay(255);
-  pillServo.write(88);
-  delay(255);
-  pillServo.write(88);
-  delay(255);
-
-  delay(3000);
-
-  Serial.println("three");
-  pillServo.write(87);
-  delay(476);
-  pillServo.write(87);
-  delay(476);
-  pillServo.write(87);
-  delay(476);
-
-  while(1)
+  if(update_screen)
   {
-    Serial.println("what");
+    switch(screen_state)
+    {
+      case MAIN_SCREEN:
+        Serial.println("MAIN_SCREEN");
+        drawSdJpeg("/main.jpg", 0, 0);
+        display_text(TASK_BAR_TEXT, "        CareMate       Team JJJJ");
+        display_text(MAIN_BOX_1, "Dispenses Left: " + dispenses_left);
+        display_text(MAIN_BOX_2, formatted_time(data.alarms[0].day, data.alarms[0].time));
+        update_screen = false;
+        update_time_now = true;
+        break;
+      case BT_SETUP:
+      Serial.println("BT_SETUP");
+        drawSdJpeg("/main.jpg", 0, 0);
+        display_text(TIME_TEXT, "BT Setup");
+        display_text(TASK_BAR_TEXT, "  Press screen to exit Bluetooth setup");
+        update_screen = false;
+        bluetooth_setup();
+        break;
+      case ALARMS:
+        Serial.println("ALARMS");
+        drawSdJpeg("/pill_alarm.jpg", 0, 0);
+        display_text(TASK_BAR_TEXT, "            Upcoming Alarms");
+        update_screen = false;
+        display_text(SELECTION_BOX_1, formatted_time(data.alarms[0].day, data.alarms[0].time));
+        display_text(SELECTION_BOX_2, formatted_time(data.alarms[1].day, data.alarms[1].time));
+        display_text(SELECTION_BOX_3, formatted_time(data.alarms[2].day, data.alarms[2].time));
+        break;
+      case MEDICATION:
+        Serial.println("MEDICATION");
+        drawSdJpeg("/pill_alarm.jpg", 0, 0);
+        display_text(TASK_BAR_TEXT, "   Upcoming Medications Dispense Times");
+        update_screen = false;
+        display_text(SELECTION_BOX_1, formatted_time(data.alarms[0].day, data.alarms[0].time));
+        display_text(SELECTION_BOX_2, formatted_time(data.alarms[1].day, data.alarms[1].time));
+        display_text(SELECTION_BOX_3, formatted_time(data.alarms[2].day, data.alarms[2].time));
+        break;
+      case MESSAGES:
+        Serial.println("MESSAGES");
+        drawSdJpeg("/pill_alarm.jpg", 0, 0);
+        display_text(TASK_BAR_TEXT, "     Press Option to Email Message");
+        update_screen = false;
+        display_text(SELECTION_BOX_1, "Record message");
+        display_text(SELECTION_BOX_2, "   Call me");
+        display_text(SELECTION_BOX_3, "    Urgent");
+        break;
+    }
   }
 
+  if(screen_state == BT_SETUP)
+  {
+    bluetooth_setup();
+  }
 
-  
   update_time();
+  check_ts();
+}
 
+String formatted_time(const String day_entry, const int time_entry)
+{
+  String ret_val = "";
+  String temp_str;
+  char itoa_ca[5];
+  uint8_t temp_hours = time_entry / 100;
+  uint8_t temp_mins = time_entry % 100;
 
-
-  /*
-  last_click_value = click_value;
-  click_value = check_ts();
-
-  Serial.print("Selection: ");
-  Serial.println(click_value);
-
-  if(click_value != last_click_value)
+  for(uint8_t i = 0; i < (day_entry == "Thursday" ? 4 : 3); i++)
   {
-    display_rect(MAIN_BOX_1);
-
-    if(click_value == ALARMS)
-    {
-      Serial.println("Alarm");
-      display_text(MAIN_BOX_1, "Alarms");
-    }
-    else if(click_value == MEDICATION)
-    {
-      Serial.println("Medication");
-      display_text(MAIN_BOX_1, "Medication");
-    }
-    else if(click_value == MESSAGES)
-    {
-      Serial.println("Message");
-      display_text(MAIN_BOX_1, "Messages");
-    }
-    else
-    {
-      Serial.println("No selection");
-      display_text(MAIN_BOX_1, "No selection");
-    }
-
-    delay(100);
+    ret_val += day_entry[i];
   }
-  */
-  
+  ret_val += (day_entry == "Thursday" ? " " : "  ");
 
+  itoa((temp_hours == 0 ? 12 : temp_hours % 12), itoa_ca, 10);
+  ret_val += itoa_ca;
+  ret_val += ":";
+  itoa(temp_mins, itoa_ca, 10);
+  ret_val += temp_mins < 10 ? "0" : "";
+  ret_val += itoa_ca;
+  ret_val += temp_hours > 12 ? " PM" : " AM";
 
-
-
-
-
-  /*
-  drawSdJpeg("/main.jpg", 0, 0);
-  display_text(TIME_TEXT, "12:55");
-  display_text(TASK_BAR_TEXT, "CareMate test titble bar");
-  display_text(MAIN_BOX_1, "test box 1");
-  display_text(MAIN_BOX_2, "test box 2");
-  delay(1000);
-  display_rect(TIME_TEXT);
-  display_rect(TASK_BAR_TEXT);
-  display_rect(MAIN_BOX_1);
-  display_rect(MAIN_BOX_2);
-  delay(1000); 
-
-  drawSdJpeg("/pill_alarm.jpg", 0, 0);
-  display_text(TASK_BAR_TEXT, "Test medication/alarm screen");
-  display_text(SELECTION_BOX_1, "Test day 1");
-  display_text(SELECTION_BOX_2, "Test day 2");
-  display_text(SELECTION_BOX_3, "Test day 3");
-  delay(1000);
-  display_rect(TASK_BAR_TEXT);
-  display_rect(SELECTION_BOX_1);
-  display_rect(SELECTION_BOX_2);
-  display_rect(SELECTION_BOX_3);
-  delay(1000);
-
-  //load_second_display("wifi");
-  load_second_display_array("medication");
-  delay(3000);
-  */
-  
-  /*
-  if (read_button(BUTTON1))
-  {
-
-    Serial.println(dispense_pills());
-  }
-
-
-
-  if (read_button(BUTTON2))
-  {
-    for (uint8_t i = 0; i < 90; i++)
-    {
-      Serial.println(90 - i);
-      pillServo.write(90 - i);
-      delay(2000);
-    }
-
-  }
-  pillServo.write(86);
-  */
+  return ret_val;
 }
 
 void update_time()
 {
   uint32_t temp_time = millis() - base_time;
-  bool update_screen = false;
+  bool time_changed = false;
 
   if(temp_time > (1000 * 60))
   {
-    update_screen = true;
+    time_changed = true;
     base_time += (1000 * 60);
 
     minutes++;
@@ -329,17 +272,16 @@ void update_time()
       }
     }
 
-    check_alarms();
-    check_pills();
-    check_questions();
+    check_new_time();
   }
 
-  if(first_start || (screen_state == MAIN_SCREEN && update_screen))
+  if(screen_state == MAIN_SCREEN && (time_changed || update_time_now))
   {
+    update_time_now = false;
+
     String temp_str;
     char itoa_ca[5];
 
-    first_start = false;
     itoa((hours == 0 ? 12 : hours % 12), itoa_ca, 10);
     temp_str += itoa_ca;
     temp_str += ":";
@@ -355,38 +297,91 @@ void update_time()
   }
 }
 
-void check_alarms()
+String int_to_day(uint8_t input_day)
+{
+  if(input_day == 0)
+  {
+    return "Monday";
+  }
+  if(input_day == 1)
+  {
+    return "Tuesday";
+  }
+  if(input_day == 2)
+  {
+    return "Wednesday";
+  }
+  if(input_day == 3)
+  {
+    return "Thursday";
+  }
+  if(input_day == 4)
+  {
+    return "Friday";
+  }
+  if(input_day == 5)
+  {
+    return "Saturday";
+  }
+  return "Sunday";
+}
+
+void check_new_time()
 {
   for(uint8_t i = 0; i < 7; i++)
   {
-    if(data.alarms[i].time == (hours * 100 + minutes))
+    if(data.medications[i].day == int_to_day(day) && data.medications[i].time == (hours * 100 + minutes))
     {
-
-      return;
+      dispense_pills();
+    }
+    if(data.alarms[i].day == int_to_day(day) && data.alarms[i].time == (hours * 100 + minutes))
+    {
+      trigger_alarm();
+    }
+    if(data.question_time == (hours * 100 + minutes))
+    {
+      display_questions();
     }
   }
 }
 
-void check_pills()
+void trigger_alarm()
 {
-  for(uint8_t i = 0; i < 7; i++)
-  {
-    if(data.medications[i].time == (hours * 100 + minutes))
-    {
-      return;
-    }
-  }
+  Serial.println("Trigger alarm");
 }
 
-void check_questions()
+bool dispense_pills()
 {
-  for(uint8_t i = 0; i < 7; i++)
+  dispenses_left--;
+  Serial.println("Dispense pills");
+
+  uint32_t my_time = millis();
+  bool return_value = true;
+
+  pillServo.write(98);
+  while (!digitalRead(LS) && return_value)
   {
-    if(data.alarms[i].time == (hours * 100 + minutes))
+    if (millis() - my_time > 10000)
     {
-      return;
+      return_value = false;
     }
   }
+  delay(5);
+  while (digitalRead(LS) && return_value)
+  {
+    if (millis() - my_time > 10000)
+    {
+      return_value = false;
+    }
+  }
+  pillServo.write(90);
+
+  return return_value;
+}
+
+void display_questions()
+{
+  Serial.println("Display questions");
 }
 
 void json_load(const String type)
@@ -531,10 +526,16 @@ void json_load(const String type)
   //DeserializationError error = deserializeJson(doc, tmp);
 }
 
+void get_time_wifi()
+{
+  
+}
+
 void bluetooth_setup()
 {
   StaticJsonDocument<800> doc;
   File theFile;
+  Serial.println("We are in the function");
 
   while(1)
   {
@@ -571,7 +572,14 @@ void bluetooth_setup()
         }
       }
     }
+    /*
     if(digitalRead(LS))
+    {
+      return;
+    }
+    */
+    check_ts();
+    if(screen_state != BT_SETUP)
     {
       return;
     }
@@ -625,8 +633,8 @@ bool display_text(uint8_t selection, String input)
       tft.print(input);
       break;
     case MAIN_BOX_1:
-      tft.setCursor(50, 120);
-      tft.setTextSize(4);
+      tft.setCursor(46, 126);
+      tft.setTextSize(3);
       tft.setTextColor(0x0000, BOX);
       tft.print(input);
       break;
@@ -657,32 +665,6 @@ bool display_text(uint8_t selection, String input)
     default:
       break;
   }
-}
-
-bool dispense_pills()
-{
-  uint32_t my_time = millis();
-  bool return_value = true;
-
-  pillServo.write(98);
-  while (!digitalRead(LS) && return_value)
-  {
-    if (millis() - my_time > 10000)
-    {
-      return_value = false;
-    }
-  }
-  delay(5);
-  while (digitalRead(LS) && return_value)
-  {
-    if (millis() - my_time > 10000)
-    {
-      return_value = false;
-    }
-  }
-  pillServo.write(90);
-
-  return return_value;
 }
 
 uint8_t read_button(uint8_t pin)
@@ -719,18 +701,13 @@ uint8_t read_button(uint8_t pin)
 
 uint8_t check_ts()
 {
-  uint8_t ret_val = NO_SELECTION;
   uint16_t temp_x;
 
   p = ts.getPoint();
 
-  Serial.print("p.z:"); Serial.print(p.z); Serial.print("\tp.x:"); Serial.print(p.x); Serial.print("\tp.y:"); Serial.println(p.y);
+  //Serial.print("p.z:"); Serial.print(p.z); Serial.print("\tp.x:"); Serial.print(p.x); Serial.print("\tp.y:"); Serial.println(p.y);
 
-  if(p.z == -1) //(p.z < MINPRESSURE || p.z > MAXPRESSURE)
-  {
-    ret_val = NO_SELECTION;
-  }
-  else
+  if(p.z > MINPRESSURE) //(p.z < MINPRESSURE || p.z > MAXPRESSURE)
   {
     // Scale from ~0->1000 to tft.width using the calibration #'s
     temp_x = p.x;
@@ -745,28 +722,56 @@ uint8_t check_ts()
       {
         if(p.x <= 165)
         {
-          ret_val = ALARMS;
+          screen_state = ALARMS;
+          update_screen = true;
         }
         else if(p.x >= 315)
         {
-          ret_val = MESSAGES;
+          screen_state = MESSAGES;
+          update_screen = true;
         }
         else
         {
-          ret_val = MEDICATION;
+          screen_state = MEDICATION;
+          update_screen = true;
         }
       }
-    }
-    else if(screen_state == THREE_BAR_SCREEN)
-    {
-      if(1)
+      else if(p.y <= 40 && p.x <= 40)
       {
-        Serial.print('1');
+        screen_state = BT_SETUP;
+        update_screen = true;
       }
     }
+    else if(screen_state == ALARMS)
+    {
+      if(p.y >= 260 && p.x <= 170)
+      {
+        screen_state = MAIN_SCREEN;
+        update_screen = true;
+      }
+    }
+    else if(screen_state == MESSAGES)
+    {
+      if(p.y >= 260 && p.x <= 170)
+      {
+        screen_state = MAIN_SCREEN;
+        update_screen = true;
+      }
+    }
+    else if(screen_state == MEDICATION)
+    {
+      if(p.y >= 260 && p.x <= 170)
+      {
+        screen_state = MAIN_SCREEN;
+        update_screen = true;
+      }
+    }
+    else if(screen_state == BT_SETUP)
+    {
+      screen_state = MAIN_SCREEN;
+      update_screen = true;
+    }
   }
-
-  return ret_val;
 }
 
 //####################################################################################################
@@ -811,7 +816,7 @@ void drawSdJpeg(const char *filename, int xpos, int ypos)
 void jpegRender(int xpos, int ypos)
 {
 
-  //jpegInfo(); // Print information from the JPEG file (could comment this line out)
+  jpegInfo(); // Print information from the JPEG file (could comment this line out)
 
   uint16_t *pImg;
   uint16_t mcu_w = JpegDec.MCUWidth;
