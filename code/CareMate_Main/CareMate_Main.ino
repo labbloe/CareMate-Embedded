@@ -60,37 +60,42 @@ data_class data;
 // VARIABLE DECLARATIONS
 uint8_t pills_disp = 0;
 bool update_screen;
-uint8_t hours = 8;
-uint8_t minutes = 30;
-uint8_t day = 1;
+uint8_t hours = 14;
+uint8_t minutes = 5;
+uint8_t day = 5;
 uint32_t base_time = millis();
 uint8_t screen_state;
 bool update_time_now;
 uint8_t dispenses_left = 7;
+
+
 
 // BLUETOOTH CHECK
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
 #error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
 #endif
 
-
-
-
-
 // SETUP
 void setup()
 {
+  delay(400);
+
   // SERIAL
   Serial.begin(115200);
 
   // OUTPUTS
+
   pinMode(LS, INPUT_PULLDOWN);
-  pinMode(BUTTON1, INPUT);
-  pinMode(BUTTON2, INPUT);
-  pinMode(SERVO, OUTPUT);
+  pinMode(GREEN_BUTTON, INPUT_PULLDOWN);
+  pinMode(RED_BUTTON, INPUT_PULLDOWN);
+  pinMode(GREEN_BUTTON_VCC, OUTPUT);
+  pinMode(RED_BUTTON_VCC, OUTPUT);
+
   pinMode(SPEAKER, OUTPUT);
 
   digitalWrite(SPEAKER, HIGH);
+  digitalWrite(GREEN_BUTTON_VCC, HIGH);
+  digitalWrite(RED_BUTTON_VCC, HIGH);
 
   // BLUETOOTH
   SerialBT.begin("CareMate"); //Bluetooth device name
@@ -149,7 +154,7 @@ void setup()
   tft.setRotation(3);  // landscape (all files printed in landscape only)
   
   //bluetooth_setup(); 
-  //get_time_wifi();
+  
 
   Serial.print("\n\nData\n");
   json_load("medication");
@@ -157,8 +162,39 @@ void setup()
   json_load("notification");
   json_load("wifi");
   json_load("question");
-
   Serial.print("\n\n");
+
+  // WIFI
+  char ssid[40];
+  char password[40];
+  data.wifi.ssid.toCharArray(ssid, 40);
+  data.wifi.pass.toCharArray(password,40);
+
+
+  const char* ntpServer = "pool.ntp.org";
+  const long  gmtOffset_sec = 3600 * -6;
+  const int   daylightOffset_sec = 3600;
+
+  Serial.printf("Connecting to %s ", data.wifi.ssid);
+  WiFi.begin(ssid, password);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println(" CONNECTED");
+
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  get_time_wifi();
+
+  WiFi.disconnect(true); // disconnect, no longer needed
+  WiFi.mode(WIFI_OFF);
+
+  
+
+
+
 
   update_screen = true;
   screen_state = MAIN_SCREEN;
@@ -186,6 +222,7 @@ void loop()
         display_text(TASK_BAR_TEXT, "  Press screen to exit Bluetooth setup");
         update_screen = false;
         bluetooth_setup();
+        Serial.print("\n\nData\n");
         break;
       case ALARMS:
         Serial.println("ALARMS");
@@ -202,9 +239,9 @@ void loop()
         drawSdJpeg("/pill_alarm.jpg", 0, 0);
         display_text(TASK_BAR_TEXT, "   Upcoming Medications Dispense Times");
         update_screen = false;
-        display_text(SELECTION_BOX_1, formatted_time(data.alarms[0].day, data.alarms[0].time));
-        display_text(SELECTION_BOX_2, formatted_time(data.alarms[1].day, data.alarms[1].time));
-        display_text(SELECTION_BOX_3, formatted_time(data.alarms[2].day, data.alarms[2].time));
+        display_text(SELECTION_BOX_1, formatted_time(data.medications[0].day, data.medications[0].time));
+        display_text(SELECTION_BOX_2, formatted_time(data.medications[1].day, data.medications[1].time));
+        display_text(SELECTION_BOX_3, formatted_time(data.medications[2].day, data.medications[2].time));
         break;
       case MESSAGES:
         Serial.println("MESSAGES");
@@ -214,6 +251,35 @@ void loop()
         display_text(SELECTION_BOX_1, " Record message");
         display_text(SELECTION_BOX_2, "    Call me");
         display_text(SELECTION_BOX_3, "     Urgent");
+        break;
+    }
+  }
+  else
+  {
+    switch(screen_state)
+    {
+      case MAIN_SCREEN:
+        if(digitalRead(RED_BUTTON))
+        {
+          minutes++;
+          update_time_now = true;
+          update_time();
+          check_new_time();
+        }
+        if(digitalRead(GREEN_BUTTON))
+        {
+          hours++;
+          update_time_now = true;
+          update_time();
+          delay(500);
+        }
+        break;
+      case BT_SETUP:
+        if(digitalRead(RED_BUTTON) || digitalRead(GREEN_BUTTON))
+        {
+          screen_state = MAIN_SCREEN;
+          update_screen = true;
+        }
         break;
     }
   }
@@ -263,6 +329,7 @@ void update_time()
     time_changed = true;
     base_time += (1000 * 60);
     minutes++;
+    check_new_time();
   }
 
   if(minutes == 60)
@@ -281,6 +348,7 @@ void update_time()
   {
     day = 0;
     time_changed = true;
+    display_top_bar();
   }
 
   if(screen_state == MAIN_SCREEN && (time_changed || update_time_now))
@@ -317,7 +385,7 @@ void update_time()
     display_text(TIME_TEXT, temp_str);
   }
 
-  check_new_time();
+  
 }
 
 void display_top_bar()
@@ -353,31 +421,34 @@ void display_top_bar()
 
 String int_to_day(uint8_t input_day)
 {
-  if(input_day == 1)
-  {
-    return "Monday";
-  }
-  if(input_day == 2)
-  {
-    return "Tuesday";
-  }
-  if(input_day == 3)
-  {
-    return "Wednesday";
-  }
-  if(input_day == 4)
-  {
-    return "Thursday";
-  }
-  if(input_day == 5)
-  {
-    return "Friday";
-  }
-  if(input_day == 6)
+  if(input_day == 0)
   {
     return "Saturday";
   }
-  return "Sunday";
+  else if(input_day == 1)
+  {
+    return "Monday";
+  }
+  else if(input_day == 2)
+  {
+    return "Tuesday";
+  }
+  else if(input_day == 3)
+  {
+    return "Wednesday";
+  }
+  else if(input_day == 4)
+  {
+    return "Thursday";
+  }
+  else if(input_day == 5)
+  {
+    return "Friday";
+  }
+  else
+  {
+    return "Saturday";
+  }
 }
 
 void check_new_time()
@@ -413,7 +484,15 @@ void check_new_time()
 
 void trigger_alarm()
 {
-  for(uint j = 0; j < 10; j++)
+  for(uint16_t i = 0; i < 25; i++)
+    {
+      digitalWrite(SPEAKER,LOW);
+      delayMicroseconds(800);
+      digitalWrite(SPEAKER,HIGH);
+      delayMicroseconds(800);
+    }
+  /*
+  for(uint j = 0; j < 1; j++)
   {
     for(uint16_t i = 0; i < 1000; i++)
     {
@@ -430,7 +509,7 @@ void trigger_alarm()
       digitalWrite(SPEAKER,HIGH);
       delayMicroseconds(400);
     }
-  }
+  }*/
 
   Serial.println("Trigger alarm");
 }
@@ -438,12 +517,13 @@ void trigger_alarm()
 void dispense_pills()
 {
   dispenses_left--;
-  update_screen = true;
+  display_rect(MAIN_BOX_1);
+  display_text(MAIN_BOX_1, ("Dispenses Left: "));
 
   Serial.println("Dispense pills");
 
   pillServo.write(80);
-  delay(100);
+  delay(300);
   pillServo.write(85);
   delay(1200);
 
@@ -599,7 +679,18 @@ void json_load(const String type)
 
 void get_time_wifi()
 {
-  
+  struct tm timeinfo;
+
+  if(!getLocalTime(&timeinfo))
+  {
+    Serial.println("Failed to obtain time");
+    return;
+  }
+  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+
+  day = timeinfo.tm_wday;
+  hours = timeinfo.tm_hour;
+  minutes = timeinfo.tm_min;
 }
 
 void bluetooth_setup()
@@ -636,6 +727,7 @@ void bluetooth_setup()
           theFile.println(tmp);
           theFile.close(); 
           Serial.print("Done writing to "); Serial.print(type); Serial.println(".txt");
+          json_load(type);
         }
         else
         {
@@ -789,7 +881,7 @@ uint8_t check_ts()
     p.x = map(p.y, TS_MAXY, TS_MINY, 0, tft.width());
     p.y = map(temp_x, TS_MINX, TS_MAXX, 0, tft.height());
     
-    Serial.print("p.z:"); Serial.print(p.z); Serial.print("\tp.x:"); Serial.print(p.x); Serial.print("\tp.y:"); Serial.println(p.y);
+    //Serial.print("p.z:"); Serial.print(p.z); Serial.print("\tp.x:"); Serial.print(p.x); Serial.print("\tp.y:"); Serial.println(p.y);
 
     if(screen_state == MAIN_SCREEN)
     {
@@ -815,22 +907,6 @@ uint8_t check_ts()
       {
         screen_state = BT_SETUP;
         update_screen = true;
-      }
-      else if(p.y <= 40 && p.x >= 440)
-      {
-        minutes++;
-        update_time_now = true;
-        update_time();
-        Serial.println("Minute Added");
-        delay(1);
-      }
-      else if(p.y <= 140 && p.y >= 180 && p.x >= 440)
-      {
-        hours++;
-        update_time_now = true;
-        update_time();
-        Serial.println("Hours Added");
-        delay(100);
       }
     }
     else if(screen_state == ALARMS)

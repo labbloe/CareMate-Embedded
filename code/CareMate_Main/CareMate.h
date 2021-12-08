@@ -12,8 +12,10 @@
 
 // INPUTS DEFINE
 #define LS 22
-#define BUTTON1 34
-#define BUTTON2 35
+#define RED_BUTTON 15
+#define RED_BUTTON_VCC 12
+#define GREEN_BUTTON 13
+#define GREEN_BUTTON_VCC 14
 
 // OUTPUTS DEFINE
 #define SERVO 26
@@ -130,46 +132,4 @@ void display_top_bar();
 
 
 
-/*
-const char* ssid       = "YOUR_SSID";
-const char* password   = "YOUR_PASS";
 
-const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = 3600;
-const int   daylightOffset_sec = 3600;
-
-void printLocalTime()
-{
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)){
-    Serial.println("Failed to obtain time");
-    return;
-  }
-  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
-}
-
-void setup()
-{
-  Serial.printf("Connecting to %s ", ssid);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-      delay(500);
-      Serial.print(".");
-  }
-  Serial.println(" CONNECTED");
-  
-  //init and get the time
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  printLocalTime();
-
-  //disconnect WiFi as it's no longer needed
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
-}
-
-void loop()
-{
-  delay(1000);
-  printLocalTime();
-}
-*/
