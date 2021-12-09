@@ -51,6 +51,7 @@
 #define NO_SELECTION 10
 #define MAIN_SCREEN 11
 #define BT_SETUP 12
+#define QUESTION_SCREEN 13
 
 #define WIFI_SSID "Bill Wi, the Science Fi"
 #define WIFI_PASSWORD "purplepotato925"
@@ -67,6 +68,7 @@
 #include <SD.h>
 #include <WiFi.h>
 #include <Arduino.h>
+#include <string.h>
 
 #include "TFT_eSPI.h"
 #include "JPEGDecoder.h"
@@ -75,6 +77,7 @@
 #include "TouchScreen.h"
 #include "BluetoothSerial.h"
 #include "ESP_Mail_Client.h"
+#include "SendEmail.h"
 
 void update_time();
 void check_alarms();

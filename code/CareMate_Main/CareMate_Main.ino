@@ -54,20 +54,25 @@ Servo pillServo;
 TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 TSPoint p;
 BluetoothSerial SerialBT;
-SMTPSession smtp;
 data_class data;
+SMTPSession smtp;
+ESP_Mail_Session session;
+SMTP_Message message;
 
 // VARIABLE DECLARATIONS
-uint8_t pills_disp = 0;
 bool update_screen;
+bool update_time_now;
+bool responses[7];
+
+uint8_t pills_disp = 0;
 uint8_t hours = 14;
 uint8_t minutes = 5;
 uint8_t day = 5;
-uint32_t base_time = millis();
 uint8_t screen_state;
-bool update_time_now;
 uint8_t dispenses_left = 7;
+uint8_t q_asked = 0;
 
+uint32_t base_time = millis();
 
 
 // BLUETOOTH CHECK
@@ -96,10 +101,6 @@ void setup()
   digitalWrite(SPEAKER, HIGH);
   digitalWrite(GREEN_BUTTON_VCC, HIGH);
   digitalWrite(RED_BUTTON_VCC, HIGH);
-
-  // BLUETOOTH
-  SerialBT.begin("CareMate"); //Bluetooth device name
-  Serial.println("The device started, now you can pair it with bluetooth!");
 
   // SERVO
   ESP32PWM::allocateTimer(0);
@@ -170,6 +171,9 @@ void setup()
   data.wifi.ssid.toCharArray(ssid, 40);
   data.wifi.pass.toCharArray(password,40);
 
+  //drawSdJpeg("/main.jpg", 0, 0);
+  //display_text(TIME_TEXT, "Wifi Setup");
+
 
   const char* ntpServer = "pool.ntp.org";
   const long  gmtOffset_sec = 3600 * -6;
@@ -182,18 +186,27 @@ void setup()
   {
     delay(500);
     Serial.print(".");
+    if(millis() > base_time + 15000)
+    {
+      break;
+    }
+  }
+  if(millis() > base_time + 15000)
+  {
+    Serial.print(" NOT");
   }
   Serial.println(" CONNECTED");
 
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   get_time_wifi();
 
-  WiFi.disconnect(true); // disconnect, no longer needed
-  WiFi.mode(WIFI_OFF);
+  sendEmail_setup(smtp, session, message);
+  message.addRecipient("CareMate User", data.notification.email.c_str());
 
-  
+  Serial.print("THING AS C_STRING"); Serial.println(data.notification.email.c_str());
 
-
+  //WiFi.disconnect(true); // disconnect, no longer needed
+  //WiFi.mode(WIFI_OFF);
 
 
   update_screen = true;
@@ -252,6 +265,114 @@ void loop()
         display_text(SELECTION_BOX_2, "    Call me");
         display_text(SELECTION_BOX_3, "     Urgent");
         break;
+      case QUESTION_SCREEN:
+        bool send_email = false;
+        while(digitalRead(RED_BUTTON) || digitalRead(GREEN_BUTTON)) {}
+        if(q_asked == 0)
+        {
+          display_rect(TASK_BAR_TEXT);
+          display_rect(QUESTION_SCREEN);
+          display_text(TASK_BAR_TEXT, "Press green for yes and red for no");
+          update_screen = false;
+          //drawSdJpeg("/question.jpg", 0, 0);
+  
+          /*
+          for(uint8_t i = 0; i < 7; i++)
+          {
+            Serial.print("question ");
+            Serial.print(i);
+            Serial.print(": ");
+            Serial.println(data.questions[i]);
+          }*/
+        }
+        else if(q_asked == 7)
+        {
+          send_email = true;
+        } 
+        else if(data.questions[q_asked].length() < 3 || send_email)
+        {
+          String email_text = "Greetings,\n\nReults from CareMate questionnaire:\n\n";
+          screen_state = MAIN_SCREEN;
+          for(uint8_t i = 0; i < q_asked; i++)
+          {
+            Serial.print("Response ");
+            Serial.print(i);
+            Serial.print(": ");
+            Serial.print(responses[i]);
+
+            if(data.questions[i].length() > 1)
+            {
+              email_text += data.questions[i] + '\n' + "Response: " + (responses[i] ? "Yes" : "No") + "\n\n";
+            }
+          }
+
+          email_text += "Thank you for choosing the CareMate by Team JJJJ!";
+          Serial.println(email_text);
+          sendMail_Text(smtp, session, message, email_text);
+
+          q_asked = 0;
+          //send email
+        }
+        if(screen_state == QUESTION_SCREEN)
+        {
+          String q = " " + data.questions[q_asked];
+          String temp = "";
+
+          uint16_t index = 0;
+          uint16_t str_len = q.length();
+
+          bool null_found = false;
+
+          display_rect(QUESTION_SCREEN);
+
+          tft.setTextSize(4);
+          tft.setTextColor(0x000, BG);
+          tft.setCursor(0, 19);
+
+          while(str_len > 1)
+          {
+            index = 19;
+            for(uint8_t i = 0; i < 20 && !null_found; i++)
+            {
+              if(q[i] == '\0')
+              {
+                null_found = true;
+                index = i;
+              }
+              if(q[i] == ' ')
+              {
+                index = i;
+              }
+            }
+
+            for(uint16_t i = 0; i < index; i++)
+            {
+              if(q[i] != '\0')
+              {
+                tft.print(q[i]);
+              }
+            }
+
+            
+            temp = q;
+            q = "";
+            tft.print("\n");
+
+            for(uint16_t i = index; i < str_len; i++)
+            {
+              q += temp[i];
+            }
+
+            str_len-= index;
+
+            Serial.print("String Length: "); Serial.println(str_len);
+          }
+
+          update_screen = false;
+
+          //display_text(QUESTION_SCREEN, data.questions[q_asked]);
+          delay(500);
+        }
     }
   }
   else
@@ -271,7 +392,7 @@ void loop()
           hours++;
           update_time_now = true;
           update_time();
-          delay(500);
+          delay(200);
         }
         break;
       case BT_SETUP:
@@ -281,6 +402,17 @@ void loop()
           update_screen = true;
         }
         break;
+      case QUESTION_SCREEN:
+        bool red = digitalRead(RED_BUTTON);
+        bool green = digitalRead(GREEN_BUTTON);
+
+        if(red || green)
+        {
+          responses[q_asked] = green;
+          q_asked++;
+          update_screen = true;
+
+        }
     }
   }
 
@@ -307,13 +439,15 @@ String formatted_time(const String day_entry, const int time_entry)
   }
   ret_val += (day_entry == "Thursday" ? " " : "  ");
 
-  itoa((temp_hours == 0 ? 12 : temp_hours % 12), itoa_ca, 10);
+  temp_hours = (temp_hours > 12 ? temp_hours % 12 : temp_hours);
+
+  itoa((temp_hours == 0 ? 12 : temp_hours % 13), itoa_ca, 10);
   ret_val += itoa_ca;
   ret_val += ":";
   itoa(temp_mins, itoa_ca, 10);
   ret_val += temp_mins < 10 ? "0" : "";
   ret_val += itoa_ca;
-  ret_val += hours > 12 ? " PM" : " AM";
+  ret_val += (time_entry / 100) >= 12 ? " PM" : " AM";
 
   return ret_val;
 }
@@ -337,18 +471,21 @@ void update_time()
     minutes = 0;
     hours++;
     time_changed = true;
+    check_new_time();
   }
   if(hours == 24)
   {
     hours = 0;
     day++;
     time_changed = true;
+    check_new_time();
   }
   if(day == 7)
   {
     day = 0;
     time_changed = true;
     display_top_bar();
+    check_new_time();
   }
 
   if(screen_state == MAIN_SCREEN && (time_changed || update_time_now))
@@ -358,18 +495,7 @@ void update_time()
     String temp_str;
     char itoa_ca[5];
 
-    if(hours == 24)
-    {
-      temp_hours = 0;
-    }
-    else if(hours > 12)
-    {
-      temp_hours = hours % 12;
-    }
-    else
-    {
-      temp_hours = hours;
-    }
+    temp_hours = (hours > 12 ? hours % 12 : hours);
 
     itoa((temp_hours == 0 ? 12 : temp_hours % 13), itoa_ca, 10);
     temp_str += itoa_ca;
@@ -383,6 +509,7 @@ void update_time()
 
     display_rect(TIME_TEXT);
     display_text(TIME_TEXT, temp_str);
+    display_top_bar();
   }
 
   
@@ -423,7 +550,7 @@ String int_to_day(uint8_t input_day)
 {
   if(input_day == 0)
   {
-    return "Saturday";
+    return "Sunday";
   }
   else if(input_day == 1)
   {
@@ -459,18 +586,6 @@ void check_new_time()
     {
       dispense_pills();
     }
-    /*
-    Serial.print("data.alarms[i].day = ");
-    Serial.print(data.alarms[i].day);
-
-    Serial.print("\tint_to_day(day) = ");
-    Serial.print(int_to_day(day));
-
-    Serial.print("\tdata.alarms[i].time = ");
-    Serial.print(data.alarms[i].time);
-
-    Serial.print("\thours * 100 + minutes = ");
-    Serial.println(hours * 100 + minutes);*/
     if(data.alarms[i].day == int_to_day(day) && data.alarms[i].time == (hours * 100 + minutes))
     {
       trigger_alarm();
@@ -484,32 +599,8 @@ void check_new_time()
 
 void trigger_alarm()
 {
-  for(uint16_t i = 0; i < 25; i++)
-    {
-      digitalWrite(SPEAKER,LOW);
-      delayMicroseconds(800);
-      digitalWrite(SPEAKER,HIGH);
-      delayMicroseconds(800);
-    }
-  /*
-  for(uint j = 0; j < 1; j++)
-  {
-    for(uint16_t i = 0; i < 1000; i++)
-    {
-      digitalWrite(SPEAKER,LOW);
-      delayMicroseconds(200);
-      digitalWrite(SPEAKER,HIGH);
-      delayMicroseconds(200);
-    }
-
-    for(uint16_t i = 0; i < 500; i++)
-    {
-      digitalWrite(SPEAKER,LOW);
-      delayMicroseconds(400);
-      digitalWrite(SPEAKER,HIGH);
-      delayMicroseconds(400);
-    }
-  }*/
+  noTone(SPEAKER);
+  tone(SPEAKER, 5000, 500);
 
   Serial.println("Trigger alarm");
 }
@@ -532,6 +623,9 @@ void dispense_pills()
 
 void display_questions()
 {
+  screen_state = QUESTION_SCREEN;
+  update_screen = true;
+  q_asked = 0;
   Serial.println("Display questions");
 }
 
@@ -603,6 +697,8 @@ void json_load(const String type)
             {
               data.question_time = doc["time"];
               Serial.print("\n\tQuestion");
+              Serial.print("\n\t\ttime\t");
+              Serial.print(data.question_time);
             }
             Serial.print("\n\t\tques\t");
             Serial.print(json_array_element);
@@ -695,6 +791,10 @@ void get_time_wifi()
 
 void bluetooth_setup()
 {
+  // BLUETOOTH
+  SerialBT.begin("CareMate"); //Bluetooth device name
+  Serial.println("The device started, now you can pair it with bluetooth!");
+
   StaticJsonDocument<800> doc;
   File theFile;
   Serial.println("We are in the function");
@@ -708,7 +808,7 @@ void bluetooth_setup()
     if (SerialBT.available())
     {
       String tmp = SerialBT.readString();
-      Serial.print("Message over BT: "); Serial.println(tmp);
+      Serial.print("\nMessage over BT: "); Serial.println(tmp);
       DeserializationError error = deserializeJson(doc, tmp);
       if(error)
       {
@@ -727,6 +827,8 @@ void bluetooth_setup()
           theFile.println(tmp);
           theFile.close(); 
           Serial.print("Done writing to "); Serial.print(type); Serial.println(".txt");
+          display_rect(MAIN_BOX_1);
+          display_text(MAIN_BOX_1, (type));
           json_load(type);
         }
         else
@@ -744,6 +846,11 @@ void bluetooth_setup()
     check_ts();
     if(screen_state != BT_SETUP)
     {
+      // BLUETOOTH
+      SerialBT.flush();  
+      SerialBT.disconnect();
+      SerialBT.end();
+      Serial.println("Bluetooth has been disconnected");
       return;
     }
   }
@@ -774,6 +881,8 @@ bool display_rect(uint8_t selection)
     case SELECTION_BOX_3:
       tft.fillRect(46, 206, 390, 49, BOX);
       break;
+    case QUESTION_SCREEN:
+      tft.fillRect(0, 19, 480, 301, BG);
     default:
       break;
   }
@@ -829,6 +938,11 @@ bool display_text(uint8_t selection, String input)
       tft.setTextColor(0x0000, BOX);
       tft.print(input);
       break;
+    case QUESTION_SCREEN:
+      tft.setTextSize(4);
+      tft.setCursor(0, 19);
+      tft.setTextColor(0x000, BG);
+      tft.print(input);
     default:
       break;
   }
@@ -924,6 +1038,37 @@ uint8_t check_ts()
         screen_state = MAIN_SCREEN;
         update_screen = true;
       }
+      else if(p.x >= 40 && p.x <= 400 && p.y >= 55 && p.y <= 115)
+      {
+        // Record message
+        display_rect(SELECTION_BOX_1);
+        display_text(SELECTION_BOX_1, "  Recording...");
+        delay(10000);
+        display_rect(SELECTION_BOX_1);
+        display_text(SELECTION_BOX_1, " Record message");
+      }
+      else if(p.x >= 40 && p.x <= 400 && p.y >= 130 && p.y <= 188)
+      {
+        // Call me
+        display_rect(SELECTION_BOX_2);
+        display_text(SELECTION_BOX_2, "  Sending...");
+        String call_me_str = "Greetings,\n\nYour CareMate indicates a request for a call.";
+        sendMail_Text(smtp, session, message, call_me_str);
+        delay(1000);
+        display_rect(SELECTION_BOX_2);
+        display_text(SELECTION_BOX_2, "    Call me");
+      }
+      else if(p.x >= 40 && p.x <= 400 && p.y >= 200 && p.y <= 260)
+      {
+        // Urgent
+        display_rect(SELECTION_BOX_3);
+        display_text(SELECTION_BOX_3, "  Sending...");
+        String urgent_str = "Attention,\n\nURGENT MESSAGE FROM CAREMATE";
+        sendMail_Text(smtp, session, message, urgent_str);
+        delay(1000);
+        display_rect(SELECTION_BOX_3);
+        display_text(SELECTION_BOX_3, "     Urgent");
+      }
     }
     else if(screen_state == MEDICATION)
     {
@@ -983,7 +1128,7 @@ void drawSdJpeg(const char *filename, int xpos, int ypos)
 void jpegRender(int xpos, int ypos)
 {
 
-  jpegInfo(); // Print information from the JPEG file (could comment this line out)
+  //jpegInfo(); // Print information from the JPEG file (could comment this line out)
 
   uint16_t *pImg;
   uint16_t mcu_w = JpegDec.MCUWidth;
