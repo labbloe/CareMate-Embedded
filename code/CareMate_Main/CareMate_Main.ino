@@ -261,7 +261,7 @@ void loop()
         drawSdJpeg("/pill_alarm.jpg", 0, 0);
         display_text(TASK_BAR_TEXT, "     Press Option to Email Message");
         update_screen = false;
-        display_text(SELECTION_BOX_1, " Record message");
+        display_text(SELECTION_BOX_1, " Good Morning!");
         display_text(SELECTION_BOX_2, "    Call me");
         display_text(SELECTION_BOX_3, "     Urgent");
         break;
@@ -411,7 +411,6 @@ void loop()
           responses[q_asked] = green;
           q_asked++;
           update_screen = true;
-
         }
     }
   }
@@ -600,7 +599,15 @@ void check_new_time()
 void trigger_alarm()
 {
   noTone(SPEAKER);
-  tone(SPEAKER, 5000, 500);
+  for(uint8_t i = 0; i < 3; i++)
+  {
+    tone(SPEAKER, 1000, 200);
+    tone(SPEAKER, 500, 100);
+    tone(SPEAKER, 250, 50);
+    tone(SPEAKER, 500, 100);
+    tone(SPEAKER, 1000, 200);
+  }
+  noTone(SPEAKER);
 
   Serial.println("Trigger alarm");
 }
@@ -616,7 +623,7 @@ void dispense_pills()
   pillServo.write(80);
   delay(300);
   pillServo.write(85);
-  delay(1200);
+  delay(1500);
 
   pillServo.write(90);
 }
@@ -1033,19 +1040,21 @@ uint8_t check_ts()
     }
     else if(screen_state == MESSAGES)
     {
-      if(p.y >= 260 && p.x <= 170)
+      if(p.y >= 250 && p.x <= 170)
       {
         screen_state = MAIN_SCREEN;
         update_screen = true;
       }
       else if(p.x >= 40 && p.x <= 400 && p.y >= 55 && p.y <= 115)
       {
-        // Record message
+        // Good Morning
         display_rect(SELECTION_BOX_1);
-        display_text(SELECTION_BOX_1, "  Recording...");
-        delay(10000);
+        display_text(SELECTION_BOX_1, "  Sending...");
+        String call_me_str = "Greetings,\n\nYour CareMate commands you to have a good morning!";
+        sendMail_Text(smtp, session, message, call_me_str);
+        delay(1000);
         display_rect(SELECTION_BOX_1);
-        display_text(SELECTION_BOX_1, " Record message");
+        display_text(SELECTION_BOX_1, " Good Morning!");
       }
       else if(p.x >= 40 && p.x <= 400 && p.y >= 130 && p.y <= 188)
       {
@@ -1058,7 +1067,7 @@ uint8_t check_ts()
         display_rect(SELECTION_BOX_2);
         display_text(SELECTION_BOX_2, "    Call me");
       }
-      else if(p.x >= 40 && p.x <= 400 && p.y >= 200 && p.y <= 260)
+      else if(p.x >= 40 && p.x <= 400 && p.y >= 200 && p.y <= 240)
       {
         // Urgent
         display_rect(SELECTION_BOX_3);

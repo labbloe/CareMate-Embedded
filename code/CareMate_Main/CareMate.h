@@ -78,6 +78,7 @@
 #include "BluetoothSerial.h"
 #include "ESP_Mail_Client.h"
 #include "SendEmail.h"
+#include "AudioRecorder.h"
 
 void update_time();
 void check_alarms();
